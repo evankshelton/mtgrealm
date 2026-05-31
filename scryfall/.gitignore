@@ -1,0 +1,8 @@
+scryfall_data/
+scryfall_images/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+!.env.example
