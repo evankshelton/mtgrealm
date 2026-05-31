@@ -12,6 +12,8 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { AddCard } from "@/components/add-card";
+import { AddToDeckButton } from "@/components/add-to-deck-dialog";
+import { MiniDeckTile } from "@/components/mini-deck-tile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -137,25 +139,30 @@ export default function CollectionPage() {
           {items.map((it) => (
             <Card key={it.id}>
               <CardContent className="flex items-center gap-3 p-3">
-                {it.image_uris?.small || it.image_uris?.normal ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={(it.image_uris.small as string) || (it.image_uris.normal as string)}
-                    alt={it.card_name}
-                    className="h-20 w-auto rounded"
-                  />
-                ) : (
-                  <div className="h-20 w-14 rounded bg-muted" />
-                )}
+                <Link
+                  href={`/collection/items/${it.id}`}
+                  aria-label={`Open ${it.card_name}`}
+                  className="shrink-0 transition hover:opacity-80"
+                >
+                  {it.image_uris?.small || it.image_uris?.normal ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={(it.image_uris.small as string) || (it.image_uris.normal as string)}
+                      alt={it.card_name}
+                      className="h-20 w-auto rounded"
+                    />
+                  ) : (
+                    <div className="h-20 w-14 rounded bg-muted" />
+                  )}
+                </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    {it.oracle_id ? (
-                      <Link href={`/cards/${it.oracle_id}`} className="font-medium hover:underline">
-                        {it.card_name}
-                      </Link>
-                    ) : (
-                      <span className="font-medium">{it.card_name}</span>
-                    )}
+                    <Link
+                      href={`/collection/items/${it.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {it.card_name}
+                    </Link>
                     {it.finish !== "nonfoil" && (
                       <span className="rounded bg-secondary px-1.5 py-0.5 text-xs">{it.finish}</span>
                     )}
@@ -164,24 +171,12 @@ export default function CollectionPage() {
                     {it.set_name} ({it.set_code?.toUpperCase()}) · #{it.collector_number} ·{" "}
                     {it.rarity} · {it.lang}
                   </div>
-                  {(it.in_decks.length > 0 || it.in_listings.length > 0) && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
-                      {it.in_decks.map((d, i) => (
-                        <Link
-                          key={`deck-${d.deck_id}-${d.zone}-${i}`}
-                          href={`/decks/${d.deck_id}`}
-                          className="rounded bg-accent px-1.5 py-0.5 hover:bg-accent/70"
-                          title={`${d.quantity}x in ${d.zone}`}
-                        >
-                          {d.deck_name}
-                          {d.zone !== "main" ? ` (${d.zone})` : ""}
-                          {d.quantity > 1 ? ` ×${d.quantity}` : ""}
-                        </Link>
-                      ))}
+                  {it.in_listings.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {it.in_listings.map((l) => (
                         <span
                           key={`listing-${l.listing_id}`}
-                          className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200"
+                          className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200"
                           title={`Listed: ${l.quantity}x at ${formatPrice(l.price_cents, l.currency)}`}
                         >
                           for sale · {formatPrice(l.price_cents, l.currency)}
@@ -190,6 +185,21 @@ export default function CollectionPage() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <AddToDeckButton
+                    collectionItemId={it.id}
+                    cardName={it.card_name}
+                    onAdded={refresh}
+                  />
+                  {it.in_decks.map((d, i) => (
+                    <MiniDeckTile
+                      key={`deck-${d.deck_id}-${d.zone}-${i}`}
+                      ref={d}
+                      className="h-20 w-auto"
+                    />
+                  ))}
                 </div>
 
                 <div className="flex items-center gap-1">

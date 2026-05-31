@@ -14,8 +14,9 @@ const userCtxKey ctxKey = "user"
 
 // AuthedUser carries the minimum info handlers need about a signed-in user.
 type AuthedUser struct {
-	ID    string
-	Email string
+	ID                string `db:"id"`
+	Email             string `db:"email"`
+	PreferredLanguage string `db:"preferred_language"`
 }
 
 // FromContext returns the signed-in user, or nil if the request is anonymous.
@@ -34,7 +35,8 @@ func Optional(db *sqlx.DB) func(http.Handler) http.Handler {
 				if sess, err := LookupSession(r.Context(), db, c.Value); err == nil {
 					var u AuthedUser
 					err := db.GetContext(r.Context(), &u,
-						`SELECT id, email FROM users WHERE id = ? AND status = 'active'`,
+						`SELECT id, email, preferred_language FROM users
+						 WHERE id = ? AND status = 'active'`,
 						sess.UserID)
 					if err == nil {
 						TouchSession(r.Context(), db, sess.ID, sess.LastSeenAt)

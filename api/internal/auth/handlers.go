@@ -27,29 +27,44 @@ func New(db *sqlx.DB, cfg *config.Config) *Handler {
 // --- HTTP request/response types ---
 
 type signupReq struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
+	Email             string `json:"email"`
+	Password          string `json:"password"`
+	DisplayName       string `json:"display_name"`
+	PreferredLanguage string `json:"preferred_language"`
 }
 type loginReq struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 type userResp struct {
-	ID            string  `json:"id"`
-	Email         string  `json:"email"`
-	DisplayName   *string `json:"display_name"`
-	EmailVerified bool    `json:"email_verified"`
+	ID                string  `json:"id"`
+	Email             string  `json:"email"`
+	DisplayName       *string `json:"display_name"`
+	PreferredLanguage string  `json:"preferred_language"`
+	EmailVerified     bool    `json:"email_verified"`
 }
 
 // --- validation ---
 
-var emailRe = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+var (
+	emailRe = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+	langRe  = regexp.MustCompile(`^[a-z]{2,8}$`)
+)
 
 func validateEmail(s string) error {
 	s = strings.TrimSpace(s)
 	if !emailRe.MatchString(s) || len(s) > 255 {
 		return errors.New("invalid email")
+	}
+	return nil
+}
+
+// validateLang accepts Scryfall-style codes (en, ja, zhs, ...). We allow
+// any 2-8 char lowercase string rather than maintain a closed enum, since
+// Scryfall occasionally adds languages.
+func validateLang(s string) error {
+	if !langRe.MatchString(s) {
+		return errors.New("invalid language code")
 	}
 	return nil
 }
@@ -101,9 +116,19 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		displayNameArg = displayName
 	}
 
+	prefLang := strings.TrimSpace(strings.ToLower(req.PreferredLanguage))
+	if prefLang == "" {
+		prefLang = "en"
+	}
+	if err := validateLang(prefLang); err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error(), "INVALID_LANGUAGE")
+		return
+	}
+
 	_, err = h.DB.ExecContext(r.Context(),
-		`INSERT INTO users (id, email, password_hash, display_name) VALUES (?, ?, ?, ?)`,
-		userID, req.Email, hash, displayNameArg,
+		`INSERT INTO users (id, email, password_hash, display_name, preferred_language)
+		 VALUES (?, ?, ?, ?, ?)`,
+		userID, req.Email, hash, displayNameArg, prefLang,
 	)
 	if err != nil {
 		// MySQL 1062 = duplicate entry.
@@ -123,6 +148,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	httpx.JSON(w, http.StatusCreated, userResp{
 		ID: userID, Email: req.Email, DisplayName: &displayName,
+		PreferredLanguage: prefLang,
 	})
 }
 
@@ -135,15 +161,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
 	var row struct {
-		ID           string  `db:"id"`
-		Email        string  `db:"email"`
-		PasswordHash string  `db:"password_hash"`
-		DisplayName  *string `db:"display_name"`
-		EmailVerifiedAt *time.Time `db:"email_verified_at"`
-		Status       string  `db:"status"`
+		ID                string     `db:"id"`
+		Email             string     `db:"email"`
+		PasswordHash      string     `db:"password_hash"`
+		DisplayName       *string    `db:"display_name"`
+		PreferredLanguage string     `db:"preferred_language"`
+		EmailVerifiedAt   *time.Time `db:"email_verified_at"`
+		Status            string     `db:"status"`
 	}
 	err := h.DB.GetContext(r.Context(), &row,
-		`SELECT id, email, password_hash, display_name, email_verified_at, status
+		`SELECT id, email, password_hash, display_name, preferred_language,
+		        email_verified_at, status
 		 FROM users WHERE email = ?`, req.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -170,7 +198,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	httpx.JSON(w, http.StatusOK, userResp{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName,
-		EmailVerified: row.EmailVerifiedAt != nil,
+		PreferredLanguage: row.PreferredLanguage,
+		EmailVerified:     row.EmailVerifiedAt != nil,
 	})
 }
 
@@ -190,20 +219,22 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var row struct {
-		ID              string     `db:"id"`
-		Email           string     `db:"email"`
-		DisplayName     *string    `db:"display_name"`
-		EmailVerifiedAt *time.Time `db:"email_verified_at"`
+		ID                string     `db:"id"`
+		Email             string     `db:"email"`
+		DisplayName       *string    `db:"display_name"`
+		PreferredLanguage string     `db:"preferred_language"`
+		EmailVerifiedAt   *time.Time `db:"email_verified_at"`
 	}
 	if err := h.DB.GetContext(r.Context(), &row,
-		`SELECT id, email, display_name, email_verified_at FROM users WHERE id = ?`,
-		u.ID); err != nil {
+		`SELECT id, email, display_name, preferred_language, email_verified_at
+		 FROM users WHERE id = ?`, u.ID); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "lookup failed", "INTERNAL")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, userResp{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName,
-		EmailVerified: row.EmailVerifiedAt != nil,
+		PreferredLanguage: row.PreferredLanguage,
+		EmailVerified:     row.EmailVerifiedAt != nil,
 	})
 }
 

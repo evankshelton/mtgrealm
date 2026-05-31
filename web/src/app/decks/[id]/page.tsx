@@ -10,6 +10,11 @@ import { AddCard } from "@/components/add-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
+// Render order for zones on this page. Commander first so the deck's
+// identity is visible immediately; the `ZONES` constant keeps a logical
+// listing order ("main" first) used in form dropdowns elsewhere.
+const ZONE_DISPLAY_ORDER = ["commander", "main", "sideboard", "maybeboard"] as const;
+
 export default function DeckDetailPage({
   params,
 }: {
@@ -92,7 +97,7 @@ export default function DeckDetailPage({
 
       {showAdd && <AddCard target={{ kind: "deck", deckId: id }} onAdded={refresh} />}
 
-      {ZONES.map((zone) => {
+      {ZONE_DISPLAY_ORDER.map((zone) => {
         const items = byZone[zone];
         if (!items || items.length === 0) return null;
         const subtotal = items.reduce((s, e) => s + e.quantity, 0);
@@ -106,25 +111,30 @@ export default function DeckDetailPage({
               {items.map((e) => (
                 <Card key={e.id}>
                   <CardContent className="flex items-center gap-3 p-3">
-                    {e.image_uris?.small || e.image_uris?.normal ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={(e.image_uris.small as string) || (e.image_uris.normal as string)}
-                        alt={e.card_name}
-                        className="h-16 w-auto rounded"
-                      />
-                    ) : (
-                      <div className="h-16 w-12 rounded bg-muted" />
-                    )}
+                    <Link
+                      href={`/collection/items/${e.collection_item_id}`}
+                      aria-label={`Open ${e.card_name}`}
+                      className="shrink-0 transition hover:opacity-80"
+                    >
+                      {e.image_uris?.small || e.image_uris?.normal ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={(e.image_uris.small as string) || (e.image_uris.normal as string)}
+                          alt={e.card_name}
+                          className="h-16 w-auto rounded"
+                        />
+                      ) : (
+                        <div className="h-16 w-12 rounded bg-muted" />
+                      )}
+                    </Link>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        {e.oracle_id ? (
-                          <Link href={`/cards/${e.oracle_id}`} className="font-medium hover:underline">
-                            {e.card_name}
-                          </Link>
-                        ) : (
-                          <span className="font-medium">{e.card_name}</span>
-                        )}
+                        <Link
+                          href={`/collection/items/${e.collection_item_id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {e.card_name}
+                        </Link>
                         {e.finish !== "nonfoil" && (
                           <span className="rounded bg-secondary px-1.5 py-0.5 text-xs">{e.finish}</span>
                         )}

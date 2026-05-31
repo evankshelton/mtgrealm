@@ -45,6 +45,12 @@ type Deck struct {
 	CreatedAt   time.Time `db:"created_at"  json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at"  json:"updated_at"`
 	CardCount   int       `db:"card_count"  json:"card_count"`
+
+	// CommanderName / CommanderArtURL are populated from the card in the
+	// 'commander' zone of this deck (if any). The UI uses art_crop as the
+	// background of the deck tile. NULL for decks with no commander.
+	CommanderName   *string `db:"commander_name"    json:"commander_name"`
+	CommanderArtURL *string `db:"commander_art_url" json:"commander_art_url"`
 }
 
 // Entry is the joined shape returned by GET /decks/{id}. Each row is
@@ -95,12 +101,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	u := auth.FromContext(r.Context())
 	rows := []Deck{}
 	err := h.DB.SelectContext(r.Context(), &rows,
-		`SELECT d.id, d.user_id, d.name, d.format, d.description, d.is_public,
-		        d.created_at, d.updated_at,
-		        COALESCE((SELECT SUM(quantity) FROM deck_cards dc WHERE dc.deck_id = d.id), 0) AS card_count
-		   FROM decks d
-		  WHERE d.user_id = ?
-		  ORDER BY d.updated_at DESC, d.created_at DESC`, u.ID)
+		selectDeck+`
+		 WHERE d.user_id = ?
+		 ORDER BY d.updated_at DESC, d.created_at DESC`, u.ID)
 	if err != nil {
 		slog.Error("decks.list", "err", err, "user_id", u.ID)
 		httpx.Error(w, http.StatusInternalServerError, "list failed", "INTERNAL")
@@ -181,9 +184,31 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusCreated, d)
 }
 
+// selectDeck pulls each deck's metadata plus a single commander summary
+// (name + art_crop URL) used to render the deck tile in the UI.
+//
+// The commander subqueries pick exactly one card from the 'commander' zone;
+// for Partner decks (multiple commanders) that's fine — we just show one's
+// art as the background.
 const selectDeck = `SELECT d.id, d.user_id, d.name, d.format, d.description, d.is_public,
        d.created_at, d.updated_at,
-       COALESCE((SELECT SUM(quantity) FROM deck_cards dc WHERE dc.deck_id = d.id), 0) AS card_count
+       COALESCE((SELECT SUM(quantity) FROM deck_cards dc WHERE dc.deck_id = d.id), 0) AS card_count,
+       (SELECT cd.name
+          FROM deck_cards dc
+          JOIN collection_items ci ON ci.id = dc.collection_item_id
+          JOIN cards cd ON cd.id = ci.card_id
+         WHERE dc.deck_id = d.id AND dc.zone = 'commander'
+         ORDER BY cd.name
+         LIMIT 1) AS commander_name,
+       (SELECT JSON_UNQUOTE(JSON_EXTRACT(cd.image_uris, '$.art_crop'))
+          FROM deck_cards dc
+          JOIN collection_items ci ON ci.id = dc.collection_item_id
+          JOIN cards cd ON cd.id = ci.card_id
+         WHERE dc.deck_id = d.id
+           AND dc.zone = 'commander'
+           AND JSON_EXTRACT(cd.image_uris, '$.art_crop') IS NOT NULL
+         ORDER BY cd.name
+         LIMIT 1) AS commander_art_url
   FROM decks d`
 
 func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {

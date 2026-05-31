@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, type ApiError, type User } from "@/lib/api";
+import { api, LANGUAGES, type ApiError, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [preferredLanguage, setPreferredLanguage] = useState("en");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +29,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
       await api.post<User>(path, {
         email,
         password,
-        ...(mode === "signup" ? { display_name: displayName } : {}),
+        ...(mode === "signup"
+          ? { display_name: displayName, preferred_language: preferredLanguage }
+          : {}),
       });
       await refresh();
       router.push("/dashboard");
@@ -43,15 +46,35 @@ export function AuthForm({ mode }: { mode: Mode }) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {mode === "signup" && (
-        <div className="space-y-2">
-          <Label htmlFor="display_name">Display name</Label>
-          <Input
-            id="display_name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="optional"
-          />
-        </div>
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="display_name">Display name</Label>
+            <Input
+              id="display_name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="optional"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="preferred_language">Preferred card language</Label>
+            <select
+              id="preferred_language"
+              value={preferredLanguage}
+              onChange={(e) => setPreferredLanguage(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Cards will default to this language when browsing prints.
+            </p>
+          </div>
+        </>
       )}
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>

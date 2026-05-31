@@ -57,8 +57,25 @@ export type User = {
   id: string;
   email: string;
   display_name?: string | null;
+  preferred_language: string;
   email_verified: boolean;
 };
+
+// Languages we surface in the signup picker. Scryfall codes; not exhaustive,
+// but covers everything Wizards prints in. "en" is the default.
+export const LANGUAGES = [
+  { code: "en",  label: "English" },
+  { code: "es",  label: "Spanish" },
+  { code: "fr",  label: "French" },
+  { code: "de",  label: "German" },
+  { code: "it",  label: "Italian" },
+  { code: "pt",  label: "Portuguese" },
+  { code: "ja",  label: "Japanese" },
+  { code: "ko",  label: "Korean" },
+  { code: "ru",  label: "Russian" },
+  { code: "zhs", label: "Chinese (Simplified)" },
+  { code: "zht", label: "Chinese (Traditional)" },
+] as const;
 
 export type CanonicalCard = {
   oracle_id: string;
@@ -101,6 +118,9 @@ export type DeckRef = {
   deck_name: string;
   zone: string;
   quantity: number;
+  format: string | null;
+  commander_name: string | null;
+  commander_art_url: string | null;
 };
 
 export type ListingRef = {
@@ -150,6 +170,8 @@ export type Deck = {
   created_at: string;
   updated_at: string;
   card_count: number;
+  commander_name: string | null;
+  commander_art_url: string | null;
 };
 
 export type DeckEntry = {

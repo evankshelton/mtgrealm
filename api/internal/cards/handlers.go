@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshelton/mtg-api/internal/auth"
 	"github.com/eshelton/mtg-api/internal/httpx"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
@@ -200,16 +201,25 @@ func (h *Handler) CanonicalByOracle(w http.ResponseWriter, r *http.Request) {
 }
 
 // PrintsByOracle returns every printing (every card row) for an oracle_id.
-// Default lang=en; pass ?lang=all to include foreign-language prints.
+//
+// When the caller passes ?lang= we honor it directly (and ?lang=all returns
+// every language). When the caller omits ?lang= we default to the signed-in
+// user's preferred_language; anonymous callers get 'en'. This lets the UI
+// just call /cards/oracle/{id}/prints and get the right language slice for
+// the active user without sending an extra parameter every time.
 func (h *Handler) PrintsByOracle(w http.ResponseWriter, r *http.Request) {
 	oracleID := chi.URLParam(r, "oracle_id")
 	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		lang = "en"
+		if u := auth.FromContext(r.Context()); u != nil && u.PreferredLanguage != "" {
+			lang = u.PreferredLanguage
+		}
+	}
 
 	args := []any{oracleID}
 	where := "oracle_id = ?"
-	if lang == "" {
-		where += " AND lang = 'en'"
-	} else if lang != "all" {
+	if lang != "all" {
 		where += " AND lang = ?"
 		args = append(args, lang)
 	}

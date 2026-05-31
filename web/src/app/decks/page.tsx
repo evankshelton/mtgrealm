@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeckTile } from "@/components/deck-tile";
 
 type DeckListResponse = { data: Deck[]; limit: number };
 
@@ -111,24 +111,9 @@ export default function DecksListPage() {
       {data && data.data.length === 0 && (
         <p className="text-muted-foreground">No decks yet. Create one above.</p>
       )}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {data?.data.map((d) => (
-          <Card key={d.id}>
-            <CardHeader>
-              <CardTitle className="text-base">
-                <Link href={`/decks/${d.id}`} className="hover:underline">
-                  {d.name}
-                </Link>
-                {d.format && (
-                  <span className="ml-2 rounded bg-secondary px-2 py-0.5 text-xs">{d.format}</span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              {d.card_count} card{d.card_count === 1 ? "" : "s"}
-              {d.description ? ` · ${d.description}` : ""}
-            </CardContent>
-          </Card>
+          <DeckTile key={d.id} deck={d} />
         ))}
       </div>
     </div>

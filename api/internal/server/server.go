@@ -71,6 +71,7 @@ func New(db *sqlx.DB, cfg *config.Config) http.Handler {
 			// One auto-provisioned collection per user; singular path.
 			r.Route("/collection", func(r chi.Router) {
 				r.Get("/", collH.Get)
+				r.Get("/items/{item_id}", collH.GetItem)
 				r.Post("/items", collH.AddItem)
 				r.Patch("/items/{item_id}", collH.UpdateItem)
 				r.Delete("/items/{item_id}", collH.DeleteItem)

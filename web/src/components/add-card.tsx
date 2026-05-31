@@ -194,9 +194,9 @@ function SearchFlow({
   });
 
   const printsQ = useQuery<{ oracle_id: string; prints: CardPrint[] }>({
-    queryKey: ["add-prints", chosenCanonical?.oracle_id, "all"],
-    queryFn: () =>
-      api.get(`/cards/oracle/${chosenCanonical!.oracle_id}/prints?lang=all`),
+    // No ?lang= — the API filters to the user's preferred_language.
+    queryKey: ["add-prints", chosenCanonical?.oracle_id],
+    queryFn: () => api.get(`/cards/oracle/${chosenCanonical!.oracle_id}/prints`),
     enabled: !!chosenCanonical,
   });
 

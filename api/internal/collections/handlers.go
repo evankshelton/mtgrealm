@@ -69,6 +69,11 @@ type DeckRef struct {
 	DeckName string `db:"deck_name" json:"deck_name"`
 	Zone     string `db:"zone"      json:"zone"`
 	Quantity int    `db:"quantity"  json:"quantity"`
+	// Format and commander info let the UI render a mini deck-tile
+	// (with commander art) right inside the collection list.
+	Format          *string `db:"format"            json:"format"`
+	CommanderName   *string `db:"commander_name"    json:"commander_name"`
+	CommanderArtURL *string `db:"commander_art_url" json:"commander_art_url"`
 }
 
 // ListingRef is a thin pointer to one of the user's own active listings
@@ -170,6 +175,67 @@ const selectCollection = `SELECT c.id, c.user_id, c.created_at, c.updated_at,
        COALESCE((SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id = c.id), 0) AS item_count
   FROM collections c`
 
+// selectItem mirrors the SELECT from the Get listing handler so single-item
+// lookup returns the exact same shape (minus the deck/listing enrichment,
+// which is applied separately).
+const selectItem = `SELECT ci.id, ci.card_id, ci.finish, ci.card_condition, ci.lang,
+       ci.quantity, ci.notes, ci.acquired_at, ci.acquired_price_cents,
+       cd.name AS card_name, cd.set_code, cd.set_name,
+       cd.collector_number, cd.rarity, cd.type_line, cd.oracle_id,
+       cd.image_uris
+  FROM collection_items ci
+  JOIN cards cd ON cd.id = ci.card_id`
+
+// GetItem returns a single collection item by id with the same in_decks /
+// in_listings enrichment the list endpoint applies.
+func (h *Handler) GetItem(w http.ResponseWriter, r *http.Request) {
+	u := auth.FromContext(r.Context())
+	itemID := chi.URLParam(r, "item_id")
+
+	collID, err := h.ensureCollection(r.Context(), u.ID)
+	if err != nil {
+		slog.Error("collection.get_item.ensure", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "ensure failed", "INTERNAL")
+		return
+	}
+
+	var item Item
+	err = h.DB.GetContext(r.Context(), &item,
+		selectItem+` WHERE ci.id = ? AND ci.collection_id = ?`, itemID, collID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+			return
+		}
+		slog.Error("collection.get_item", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "lookup failed", "INTERNAL")
+		return
+	}
+
+	item.InDecks = []DeckRef{}
+	item.InListings = []ListingRef{}
+	if decks, err := h.deckRefsForCards(r.Context(), u.ID, []string{item.CardID}); err == nil {
+		for _, ref := range decks {
+			if ref.cardID == item.CardID {
+				item.InDecks = append(item.InDecks, ref.DeckRef)
+			}
+		}
+	} else {
+		slog.Warn("collection.get_item.deckrefs", "err", err)
+	}
+	if listings, err := h.listingRefsForCards(r.Context(), u.ID, []string{item.CardID}); err == nil {
+		for _, ref := range listings {
+			if ref.cardID == item.CardID {
+				item.InListings = append(item.InListings, ref.ListingRef)
+			}
+		}
+	} else {
+		slog.Warn("collection.get_item.listingrefs", "err", err)
+	}
+
+	httpx.JSON(w, http.StatusOK, item)
+}
+
 // --- items ---
 
 type addItemReq struct {
@@ -254,6 +320,7 @@ type updateItemReq struct {
 	Finish             *string `json:"finish"`
 	Lang               *string `json:"lang"`
 	Notes              *string `json:"notes"`
+	AcquiredAt         *string `json:"acquired_at"`
 	AcquiredPriceCents *int64  `json:"acquired_price_cents"`
 }
 
@@ -314,6 +381,15 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	if req.AcquiredPriceCents != nil {
 		sets = append(sets, "acquired_price_cents = ?")
 		args = append(args, *req.AcquiredPriceCents)
+	}
+	if req.AcquiredAt != nil {
+		s := strings.TrimSpace(*req.AcquiredAt)
+		if s == "" {
+			sets = append(sets, "acquired_at = NULL")
+		} else {
+			sets = append(sets, "acquired_at = ?")
+			args = append(args, s)
+		}
 	}
 	if len(sets) == 0 {
 		httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -406,15 +482,38 @@ type cardDeckRef struct {
 	DeckRef DeckRef
 }
 
+// deckRefsForCards returns the deck-card rows for any of the user's decks
+// that contain any of the given card ids, joined through collection_items
+// (since deck_cards now references collection_items.id, not cards.id —
+// see migration 0008).
+//
+// Each row also carries a commander summary (name + art_crop URL) for the
+// owning deck so the UI can render a mini deck tile inline.
 func (h *Handler) deckRefsForCards(ctx context.Context, userID string, cardIDs []string) ([]cardDeckRef, error) {
 	if len(cardIDs) == 0 {
 		return nil, nil
 	}
 	q, args, err := sqlx.In(
-		`SELECT dc.card_id, dc.deck_id, d.name AS deck_name, dc.zone, dc.quantity
+		`SELECT ci.card_id, dc.deck_id, d.name AS deck_name, d.format,
+		        dc.zone, dc.quantity,
+		        (SELECT cd2.name
+		           FROM deck_cards dc2
+		           JOIN collection_items ci2 ON ci2.id = dc2.collection_item_id
+		           JOIN cards cd2 ON cd2.id = ci2.card_id
+		          WHERE dc2.deck_id = d.id AND dc2.zone = 'commander'
+		          ORDER BY cd2.name LIMIT 1) AS commander_name,
+		        (SELECT JSON_UNQUOTE(JSON_EXTRACT(cd2.image_uris, '$.art_crop'))
+		           FROM deck_cards dc2
+		           JOIN collection_items ci2 ON ci2.id = dc2.collection_item_id
+		           JOIN cards cd2 ON cd2.id = ci2.card_id
+		          WHERE dc2.deck_id = d.id
+		            AND dc2.zone = 'commander'
+		            AND JSON_EXTRACT(cd2.image_uris, '$.art_crop') IS NOT NULL
+		          ORDER BY cd2.name LIMIT 1) AS commander_art_url
 		   FROM deck_cards dc
+		   JOIN collection_items ci ON ci.id = dc.collection_item_id
 		   JOIN decks d ON d.id = dc.deck_id
-		  WHERE d.user_id = ? AND dc.card_id IN (?)`,
+		  WHERE d.user_id = ? AND ci.card_id IN (?)`,
 		userID, cardIDs)
 	if err != nil {
 		return nil, err
@@ -428,11 +527,14 @@ func (h *Handler) deckRefsForCards(ctx context.Context, userID string, cardIDs [
 	out := []cardDeckRef{}
 	for rows.Next() {
 		var rec struct {
-			CardID   string `db:"card_id"`
-			DeckID   string `db:"deck_id"`
-			DeckName string `db:"deck_name"`
-			Zone     string `db:"zone"`
-			Quantity int    `db:"quantity"`
+			CardID          string  `db:"card_id"`
+			DeckID          string  `db:"deck_id"`
+			DeckName        string  `db:"deck_name"`
+			Format          *string `db:"format"`
+			Zone            string  `db:"zone"`
+			Quantity        int     `db:"quantity"`
+			CommanderName   *string `db:"commander_name"`
+			CommanderArtURL *string `db:"commander_art_url"`
 		}
 		if err := rows.StructScan(&rec); err != nil {
 			return nil, err
@@ -440,8 +542,13 @@ func (h *Handler) deckRefsForCards(ctx context.Context, userID string, cardIDs [
 		out = append(out, cardDeckRef{
 			cardID: rec.CardID,
 			DeckRef: DeckRef{
-				DeckID: rec.DeckID, DeckName: rec.DeckName,
-				Zone: rec.Zone, Quantity: rec.Quantity,
+				DeckID:          rec.DeckID,
+				DeckName:        rec.DeckName,
+				Format:          rec.Format,
+				Zone:            rec.Zone,
+				Quantity:        rec.Quantity,
+				CommanderName:   rec.CommanderName,
+				CommanderArtURL: rec.CommanderArtURL,
 			},
 		})
 	}
