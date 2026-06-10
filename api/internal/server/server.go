@@ -4,12 +4,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eshelton/mtg-api/internal/addresses"
 	"github.com/eshelton/mtg-api/internal/auth"
 	"github.com/eshelton/mtg-api/internal/cards"
+	"github.com/eshelton/mtg-api/internal/checkout"
 	"github.com/eshelton/mtg-api/internal/collections"
 	"github.com/eshelton/mtg-api/internal/config"
 	"github.com/eshelton/mtg-api/internal/decks"
 	"github.com/eshelton/mtg-api/internal/httpx"
+	"github.com/eshelton/mtg-api/internal/marketplace"
+	"github.com/eshelton/mtg-api/internal/orders"
+	"github.com/eshelton/mtg-api/internal/store"
+	"github.com/eshelton/mtg-api/internal/stripeapi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -41,10 +47,22 @@ func New(db *sqlx.DB, cfg *config.Config) http.Handler {
 	cardsH := cards.New(db)
 	collH := collections.New(db)
 	decksH := decks.New(db)
+	addrH := addresses.New(db)
+	storeH := store.New(db)
+	mktH := marketplace.New(db)
+	stripeClient := stripeapi.New(cfg)
+	checkoutH := checkout.New(db, cfg, stripeClient)
+	ordersH := orders.New(db)
+	webhook := stripeapi.NewWebhook(db, stripeClient)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	// Stripe webhook lives OUTSIDE /api/v1 so the CORS + cookie middleware
+	// don't interfere; it verifies its own signature. Mount with chi.With()
+	// to bypass auth.Optional.
+	r.Post("/api/v1/stripe/webhook", webhook.Handle)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// --- auth ---
@@ -62,6 +80,20 @@ func New(db *sqlx.DB, cfg *config.Config) http.Handler {
 			r.Get("/oracle/{oracle_id}/prints", cardsH.PrintsByOracle)
 			r.Get("/{id}", cardsH.PrintByID)
 		})
+
+		// Public Stripe config (publishable key only — safe to expose).
+		r.Get("/stripe/config", func(w http.ResponseWriter, _ *http.Request) {
+			httpx.JSON(w, http.StatusOK, map[string]string{
+				"publishable_key": cfg.StripePublishableKey,
+				"currency":        cfg.PlatformCurrency,
+			})
+		})
+
+		// Public marketplace browse + store pages.
+		r.Get("/marketplace/listings", mktH.Browse)
+		r.Get("/marketplace/listings/{id}", mktH.ListingDetail)
+		r.Get("/marketplace/stores/{slug}", mktH.StorePublic)
+		r.Get("/marketplace/stores/by-id/{id}/shipping", mktH.StoreShippingPublic)
 
 		// --- features (stubs) ---
 		// All require auth; concrete handlers come in later iterations.
@@ -88,25 +120,47 @@ func New(db *sqlx.DB, cfg *config.Config) http.Handler {
 				r.Delete("/{id}/cards/{entry_id}", decksH.DeleteEntry)
 			})
 
-			r.Route("/store", func(r chi.Router) {
-				r.Get("/", notImplemented("Get my store"))
-				r.Put("/", notImplemented("Upsert my store"))
-				r.Get("/shipping", notImplemented("List shipping options"))
-				r.Post("/shipping", notImplemented("Create shipping option"))
-				r.Get("/listings", notImplemented("List my listings"))
-				r.Post("/listings", notImplemented("Create listing"))
-				r.Patch("/listings/{id}", notImplemented("Update listing"))
-				r.Delete("/listings/{id}", notImplemented("Delete listing"))
+			r.Route("/addresses", func(r chi.Router) {
+				r.Get("/", addrH.List)
+				r.Post("/", addrH.Create)
+				r.Patch("/{id}", addrH.Update)
+				r.Delete("/{id}", addrH.Delete)
 			})
 
-			r.Route("/marketplace", func(r chi.Router) {
-				// browse is auth-required for v1 to avoid bot scraping;
-				// drop this when ready to go public.
-				r.Get("/listings", notImplemented("Browse marketplace"))
-				r.Get("/listings/{id}", notImplemented("Listing detail"))
-				r.Post("/listings/{id}/messages", notImplemented("Send message"))
-				r.Get("/conversations", notImplemented("My conversations"))
-				r.Get("/conversations/{id}", notImplemented("Conversation detail"))
+			r.Route("/store", func(r chi.Router) {
+				r.Get("/", storeH.GetMine)
+				r.Put("/", storeH.Upsert)
+				r.Get("/shipping", storeH.ListShipping)
+				r.Post("/shipping", storeH.CreateShipping)
+				r.Patch("/shipping/{id}", storeH.UpdateShipping)
+				r.Delete("/shipping/{id}", storeH.DeleteShipping)
+				r.Get("/listings", storeH.ListListings)
+				r.Post("/listings", storeH.CreateListing)
+				r.Patch("/listings/{id}", storeH.UpdateListing)
+				r.Delete("/listings/{id}", storeH.DeleteListing)
+			})
+
+			r.Route("/cart", func(r chi.Router) {
+				r.Get("/", mktH.GetCart)
+				r.Post("/items", mktH.AddToCart)
+				r.Patch("/items/{id}", mktH.UpdateCart)
+				r.Delete("/items/{id}", mktH.DeleteCartItem)
+			})
+
+			r.Route("/checkout", func(r chi.Router) {
+				r.Post("/preview", checkoutH.Preview)
+				r.Post("/confirm", checkoutH.Confirm)
+			})
+
+			r.Route("/orders", func(r chi.Router) {
+				r.Get("/", ordersH.List)
+				r.Get("/{id}", ordersH.Detail)
+				r.Post("/{id}/ship", ordersH.MarkShipped)
+				r.Post("/{id}/deliver", ordersH.MarkDelivered)
+				r.Post("/{id}/cancel", ordersH.Cancel)
+				r.Post("/{id}/refund", ordersH.MarkRefunded)
+				r.Post("/{id}/messages", ordersH.PostMessage)
+				r.Post("/{id}/review", ordersH.CreateReview)
 			})
 		})
 	})

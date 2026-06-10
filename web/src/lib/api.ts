@@ -46,6 +46,8 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
@@ -211,6 +213,207 @@ export const FORMATS = [
   "standard", "pioneer", "modern", "legacy", "vintage",
   "commander", "pauper", "brawl", "historic", "explorer", "alchemy", "casual",
 ] as const;
+
+// ----- Marketplace -----
+
+export type ShippingAddress = {
+  id: string;
+  label: string | null;
+  recipient: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  region: string;
+  postal_code: string;
+  country: string;
+  phone: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Store = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  return_policy: string | null;
+  status: string;
+  default_currency: string;
+  ship_from_recipient: string | null;
+  ship_from_line1: string | null;
+  ship_from_line2: string | null;
+  ship_from_city: string | null;
+  ship_from_region: string | null;
+  ship_from_postal_code: string | null;
+  ship_from_country: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ShippingOption = {
+  id: string;
+  name: string;
+  carrier_type: string | null;
+  base_cost_cents: number;
+  per_additional_card_cents: number;
+  min_order_subtotal_cents: number | null;
+  free_shipping_threshold_cents: number | null;
+  countries: string[] | null;
+  is_active: boolean;
+};
+
+export type MarketplaceListing = {
+  id: string;
+  store_id: string;
+  // store_name / store_slug present on buyer-facing endpoints; absent on the
+  // seller's own /store/listings response.
+  store_name?: string;
+  store_slug?: string;
+  card_id: string;
+  finish: string;
+  card_condition: string;
+  lang: string;
+  quantity: number;
+  price_cents: number;
+  currency: string;
+  description: string | null;
+  // status only on the seller's own listing rows.
+  status?: string;
+  card_name: string;
+  oracle_id: string | null;
+  set_code: string | null;
+  set_name: string | null;
+  collector_number: string | null;
+  rarity: string | null;
+  type_line?: string | null;
+  image_uris: Record<string, string> | null;
+};
+
+export type CartLine = {
+  id: string;
+  listing_id: string;
+  quantity: number;
+  store_id: string;
+  store_name: string;
+  store_slug: string;
+  card_id: string;
+  card_name: string;
+  set_name: string | null;
+  set_code: string | null;
+  collector_number: string | null;
+  finish: string;
+  card_condition: string;
+  lang: string;
+  unit_price_cents: number;
+  currency: string;
+  available: number;
+  image_uris: Record<string, string> | null;
+};
+
+export type CheckoutGroup = {
+  store_id: string;
+  store_name: string;
+  subtotal_cents: number;
+  shipping_cents: number;
+  total_cents: number;
+  shipping_option_id: string | null;
+  shipping_method_name: string | null;
+  currency: string;
+  items: number;
+};
+
+export type Order = {
+  id: string;
+  buyer_id: string;
+  seller_id: string;
+  store_id: string;
+  store_name: string;
+  buyer_name: string | null;
+  buyer_email: string;
+  payment_intent_id: string | null;
+  payment_status: string;
+  status: string;
+  subtotal_cents: number;
+  shipping_cents: number;
+  total_cents: number;
+  currency: string;
+  shipping_method_name: string | null;
+  tracking_carrier: string | null;
+  tracking_number: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  cancelled_at: string | null;
+  refunded_at: string | null;
+  ship_to_recipient: string;
+  ship_to_line1: string;
+  ship_to_line2: string | null;
+  ship_to_city: string;
+  ship_to_region: string;
+  ship_to_postal_code: string;
+  ship_to_country: string;
+  ship_to_phone: string | null;
+  ship_from_recipient: string | null;
+  ship_from_line1: string | null;
+  ship_from_line2: string | null;
+  ship_from_city: string | null;
+  ship_from_region: string | null;
+  ship_from_postal_code: string | null;
+  ship_from_country: string | null;
+  buyer_note: string | null;
+  refund_note: string | null;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+};
+
+export type OrderItem = {
+  id: string;
+  listing_id: string | null;
+  card_id: string;
+  quantity: number;
+  unit_price_cents: number;
+  card_name: string;
+  set_name: string | null;
+  set_code: string | null;
+  collector_number: string | null;
+  finish: string;
+  card_condition: string;
+  lang: string;
+  image_uri: string | null;
+};
+
+export type OrderMessage = {
+  id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+  sender_name: string | null;
+};
+
+export type SellerReview = {
+  id: string;
+  order_id: string;
+  buyer_id: string;
+  seller_id: string;
+  store_id: string;
+  rating: number;
+  body: string | null;
+  created_at: string;
+};
+
+export function formatMoney(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency}`;
+  }
+}
 
 export type CardPrint = {
   id: string;
