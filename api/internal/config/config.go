@@ -22,6 +22,12 @@ type Config struct {
 	CookieSecure bool
 	CookieDomain string
 	SessionTTL   time.Duration
+
+	// Stripe (platform-only model; payments land in this single account).
+	StripeSecretKey      string
+	StripePublishableKey string
+	StripeWebhookSecret  string
+	PlatformCurrency     string
 }
 
 func Load() (*Config, error) {
@@ -43,16 +49,20 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		ListenAddr:   env("LISTEN_ADDR", ":8080"),
-		WebOrigin:    env("WEB_ORIGIN", "http://localhost:3000"),
-		MySQLHost:    env("MYSQL_HOST", "127.0.0.1"),
-		MySQLPort:    port,
-		MySQLUser:    user,
-		MySQLPass:    os.Getenv("MYSQL_PASSWORD"),
-		MySQLDB:      env("MYSQL_DATABASE", "tcg"),
-		CookieSecure: env("COOKIE_SECURE", "false") == "true",
-		CookieDomain: os.Getenv("COOKIE_DOMAIN"),
-		SessionTTL:   time.Duration(ttlHrs) * time.Hour,
+		ListenAddr:           env("LISTEN_ADDR", ":8080"),
+		WebOrigin:            env("WEB_ORIGIN", "http://localhost:3000"),
+		MySQLHost:            env("MYSQL_HOST", "127.0.0.1"),
+		MySQLPort:            port,
+		MySQLUser:            user,
+		MySQLPass:            os.Getenv("MYSQL_PASSWORD"),
+		MySQLDB:              env("MYSQL_DATABASE", "tcg"),
+		CookieSecure:         env("COOKIE_SECURE", "false") == "true",
+		CookieDomain:         os.Getenv("COOKIE_DOMAIN"),
+		SessionTTL:           time.Duration(ttlHrs) * time.Hour,
+		StripeSecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
+		StripePublishableKey: os.Getenv("STRIPE_PUBLISHABLE_KEY"),
+		StripeWebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		PlatformCurrency:     env("PLATFORM_CURRENCY", "USD"),
 	}, nil
 }
 

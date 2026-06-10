@@ -10,6 +10,9 @@ const links = [
   { href: "/collection", label: "Collection" },
   { href: "/decks", label: "Decks" },
   { href: "/marketplace", label: "Marketplace" },
+  { href: "/orders", label: "Orders" },
+  { href: "/store", label: "Sell" },
+  { href: "/cart", label: "Cart" },
 ];
 
 export function Nav() {
