@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatMoney, type CartLine } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function CartPage() {
   const { user, loading } = useAuth();
@@ -42,13 +41,13 @@ export default function CartPage() {
   }, [data]);
 
   if (loading || !user) return null;
-  if (isLoading) return <p className="text-muted-foreground">Loading…</p>;
+  if (isLoading) return <p className="text-slate-400">Loading…</p>;
   if (!data || data.items.length === 0) {
     return (
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">Your cart</h1>
-        <p className="text-muted-foreground">Your cart is empty.</p>
-        <Button asChild variant="outline">
+        <h1 className="text-2xl font-semibold text-white">Your cart</h1>
+        <p className="text-slate-400">Your cart is empty.</p>
+        <Button asChild variant="outline" className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white">
           <Link href="/marketplace">Browse the marketplace</Link>
         </Button>
       </div>
@@ -72,23 +71,23 @@ export default function CartPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Your cart</h1>
+      <h1 className="text-2xl font-semibold text-white">Your cart</h1>
 
       {groups.map((g) => (
-        <Card key={g.storeID}>
-          <CardHeader>
-            <CardTitle className="text-base">
-              <Link href={`/marketplace/stores/${g.storeSlug}`} className="hover:underline">
+        <div key={g.storeID} className="rounded-xl border border-white/10 bg-white/[0.03]">
+          <div className="border-b border-white/8 px-4 py-3">
+            <div className="text-base font-medium">
+              <Link href={`/marketplace/stores/${g.storeSlug}`} className="text-white hover:underline">
                 {g.storeName}
               </Link>
-              <span className="ml-2 text-sm text-muted-foreground">
+              <span className="ml-2 text-sm text-slate-400">
                 {g.items.length} listing{g.items.length === 1 ? "" : "s"}
               </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+            </div>
+          </div>
+          <div className="space-y-0 p-4">
             {g.items.map((it) => (
-              <div key={it.id} className="flex items-center gap-3 border-b pb-2 last:border-b-0 last:pb-0">
+              <div key={it.id} className="flex items-center gap-3 border-b border-white/10 pb-3 pt-3 first:pt-0 last:border-b-0 last:pb-0">
                 {it.image_uris?.small || it.image_uris?.normal ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -97,11 +96,11 @@ export default function CartPage() {
                     className="h-16 w-auto rounded"
                   />
                 ) : (
-                  <div className="h-16 w-12 rounded bg-muted" />
+                  <div className="h-16 w-12 rounded bg-white/10" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{it.card_name}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="truncate text-sm font-medium text-white">{it.card_name}</div>
+                  <div className="text-xs text-slate-400">
                     {it.set_name} ({it.set_code?.toUpperCase()}) · {it.card_condition} · {it.finish}
                   </div>
                   {it.quantity > it.available && (
@@ -115,39 +114,46 @@ export default function CartPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => updateQty(it.id, it.quantity - 1)}
+                    className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                   >
                     −
                   </Button>
-                  <span className="min-w-6 text-center text-sm tabular-nums">{it.quantity}</span>
+                  <span className="min-w-6 text-center text-sm tabular-nums text-white">{it.quantity}</span>
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={it.quantity >= it.available}
                     onClick={() => updateQty(it.id, it.quantity + 1)}
+                    className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                   >
                     +
                   </Button>
                 </div>
-                <div className="w-24 text-right text-sm font-medium tabular-nums">
+                <div className="w-24 text-right text-sm font-medium tabular-nums text-white">
                   {formatMoney(it.unit_price_cents * it.quantity, it.currency)}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => remove(it.id)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => remove(it.id)}
+                  className="text-slate-400 hover:text-white"
+                >
                   ✕
                 </Button>
               </div>
             ))}
-            <div className="flex justify-end pt-2 text-sm">
-              Subtotal: <span className="ml-2 font-semibold">{formatMoney(g.subtotal, g.currency)}</span>
+            <div className="flex justify-end pt-3 text-sm text-slate-400">
+              Subtotal: <span className="ml-2 font-semibold text-white">{formatMoney(g.subtotal, g.currency)}</span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
 
-      <div className="flex items-center justify-between rounded-lg border p-4">
-        <div className="text-lg">
-          Total: <span className="font-semibold">{formatMoney(grandTotal, currency)}</span>
+      <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="text-lg text-slate-300">
+          Total: <span className="font-semibold text-white">{formatMoney(grandTotal, currency)}</span>
         </div>
-        <Button asChild>
+        <Button asChild className="bg-amber-500 text-black hover:bg-amber-400">
           <Link href="/checkout">Continue to checkout</Link>
         </Button>
       </div>

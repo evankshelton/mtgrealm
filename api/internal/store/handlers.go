@@ -1,6 +1,5 @@
 // Package store implements seller-side endpoints: store profile, shipping
-// options, and CRUD over listings (each listing references one of the
-// seller's collection_items).
+// options, listings, and (for LGS stores) events.
 package store
 
 import (
@@ -35,11 +34,33 @@ type Store struct {
 	UserID          string  `db:"user_id"          json:"-"`
 	Name            string  `db:"name"             json:"name"`
 	Slug            string  `db:"slug"             json:"slug"`
+	StoreType       string  `db:"store_type"       json:"store_type"`
 	Description     *string `db:"description"      json:"description"`
 	ReturnPolicy    *string `db:"return_policy"    json:"return_policy"`
 	Status          string  `db:"status"           json:"status"`
 	DefaultCurrency string  `db:"default_currency" json:"default_currency"`
 
+	// Contact (primarily LGS)
+	Phone   *string `db:"phone"   json:"phone"`
+	Email   *string `db:"email"   json:"email"`
+	Website *string `db:"website" json:"website"`
+
+	// Public storefront address (LGS)
+	AddressLine1      *string `db:"address_line1"       json:"address_line1"`
+	AddressLine2      *string `db:"address_line2"       json:"address_line2"`
+	AddressCity       *string `db:"address_city"        json:"address_city"`
+	AddressRegion     *string `db:"address_region"      json:"address_region"`
+	AddressPostalCode *string `db:"address_postal_code" json:"address_postal_code"`
+	AddressCountry    *string `db:"address_country"     json:"address_country"`
+
+	// Social links
+	FacebookURL  *string `db:"facebook_url"  json:"facebook_url"`
+	InstagramURL *string `db:"instagram_url" json:"instagram_url"`
+	DiscordURL   *string `db:"discord_url"   json:"discord_url"`
+	TwitterURL   *string `db:"twitter_url"   json:"twitter_url"`
+	YoutubeURL   *string `db:"youtube_url"   json:"youtube_url"`
+
+	// Operational shipping origin
 	ShipFromRecipient  *string `db:"ship_from_recipient"   json:"ship_from_recipient"`
 	ShipFromLine1      *string `db:"ship_from_line1"       json:"ship_from_line1"`
 	ShipFromLine2      *string `db:"ship_from_line2"       json:"ship_from_line2"`
@@ -52,19 +73,36 @@ type Store struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type StoreEvent struct {
+	ID             string     `db:"id"              json:"id"`
+	StoreID        string     `db:"store_id"        json:"-"`
+	Title          string     `db:"title"           json:"title"`
+	Description    *string    `db:"description"     json:"description"`
+	EventType      string     `db:"event_type"      json:"event_type"`
+	StartsAt       time.Time  `db:"starts_at"       json:"starts_at"`
+	EndsAt         *time.Time `db:"ends_at"         json:"ends_at"`
+	EntryFeeCents  *int64     `db:"entry_fee_cents" json:"entry_fee_cents"`
+	Currency       string     `db:"currency"        json:"currency"`
+	MaxPlayers     *int       `db:"max_players"     json:"max_players"`
+	IsRecurring    bool       `db:"is_recurring"    json:"is_recurring"`
+	Recurrence     *string    `db:"recurrence"      json:"recurrence"`
+	CreatedAt      time.Time  `db:"created_at"      json:"created_at"`
+	UpdatedAt      time.Time  `db:"updated_at"      json:"updated_at"`
+}
+
 type ShippingOption struct {
-	ID                         string    `db:"id"                              json:"id"`
-	StoreID                    string    `db:"store_id"                        json:"-"`
-	Name                       string    `db:"name"                            json:"name"`
-	CarrierType                *string   `db:"carrier_type"                    json:"carrier_type"`
-	BaseCostCents              int64     `db:"base_cost_cents"                 json:"base_cost_cents"`
-	PerAdditionalCardCents     int64     `db:"per_additional_card_cents"       json:"per_additional_card_cents"`
-	MinOrderSubtotalCents      *int64    `db:"min_order_subtotal_cents"        json:"min_order_subtotal_cents"`
-	FreeShippingThresholdCents *int64    `db:"free_shipping_threshold_cents"   json:"free_shipping_threshold_cents"`
-	Countries                  cards.JSONRaw `db:"countries"                   json:"countries,omitempty"`
-	IsActive                   bool      `db:"is_active"                       json:"is_active"`
-	CreatedAt                  time.Time `db:"created_at"                      json:"created_at"`
-	UpdatedAt                  time.Time `db:"updated_at"                      json:"updated_at"`
+	ID                         string        `db:"id"                              json:"id"`
+	StoreID                    string        `db:"store_id"                        json:"-"`
+	Name                       string        `db:"name"                            json:"name"`
+	CarrierType                *string       `db:"carrier_type"                    json:"carrier_type"`
+	BaseCostCents              int64         `db:"base_cost_cents"                 json:"base_cost_cents"`
+	PerAdditionalCardCents     int64         `db:"per_additional_card_cents"       json:"per_additional_card_cents"`
+	MinOrderSubtotalCents      *int64        `db:"min_order_subtotal_cents"        json:"min_order_subtotal_cents"`
+	FreeShippingThresholdCents *int64        `db:"free_shipping_threshold_cents"   json:"free_shipping_threshold_cents"`
+	Countries                  cards.JSONRaw `db:"countries"                       json:"countries,omitempty"`
+	IsActive                   bool          `db:"is_active"                       json:"is_active"`
+	CreatedAt                  time.Time     `db:"created_at"                      json:"created_at"`
+	UpdatedAt                  time.Time     `db:"updated_at"                      json:"updated_at"`
 }
 
 type Listing struct {
@@ -95,8 +133,12 @@ type Listing struct {
 // Store profile
 // ---------------------------------------------------------------------------
 
-const selectStore = `SELECT id, user_id, name, slug, description, return_policy,
+const selectStore = `SELECT id, user_id, name, slug, store_type, description, return_policy,
        status, default_currency,
+       phone, email, website,
+       address_line1, address_line2, address_city, address_region,
+       address_postal_code, address_country,
+       facebook_url, instagram_url, discord_url, twitter_url, youtube_url,
        ship_from_recipient, ship_from_line1, ship_from_line2,
        ship_from_city, ship_from_region, ship_from_postal_code, ship_from_country,
        created_at, updated_at
@@ -133,11 +175,29 @@ func (h *Handler) GetMine(w http.ResponseWriter, r *http.Request) {
 }
 
 type upsertStoreReq struct {
-	Name         string  `json:"name"`
-	Slug         *string `json:"slug"`
+	Name      string  `json:"name"`
+	Slug      *string `json:"slug"`
+	StoreType *string `json:"store_type"`
 	Description  *string `json:"description"`
 	ReturnPolicy *string `json:"return_policy"`
 	Status       *string `json:"status"`
+
+	Phone   *string `json:"phone"`
+	Email   *string `json:"email"`
+	Website *string `json:"website"`
+
+	AddressLine1      *string `json:"address_line1"`
+	AddressLine2      *string `json:"address_line2"`
+	AddressCity       *string `json:"address_city"`
+	AddressRegion     *string `json:"address_region"`
+	AddressPostalCode *string `json:"address_postal_code"`
+	AddressCountry    *string `json:"address_country"`
+
+	FacebookURL  *string `json:"facebook_url"`
+	InstagramURL *string `json:"instagram_url"`
+	DiscordURL   *string `json:"discord_url"`
+	TwitterURL   *string `json:"twitter_url"`
+	YoutubeURL   *string `json:"youtube_url"`
 
 	ShipFromRecipient  *string `json:"ship_from_recipient"`
 	ShipFromLine1      *string `json:"ship_from_line1"`
@@ -148,8 +208,7 @@ type upsertStoreReq struct {
 	ShipFromCountry    *string `json:"ship_from_country"`
 }
 
-// Upsert creates the user's store on first call or updates it on subsequent
-// calls. Slug is auto-generated from the name if not provided.
+// Upsert creates the user's store on first call or updates it on subsequent calls.
 func (h *Handler) Upsert(w http.ResponseWriter, r *http.Request) {
 	u := auth.FromContext(r.Context())
 	var req upsertStoreReq
@@ -180,15 +239,25 @@ func (h *Handler) Upsert(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	storeType := "personal"
+	if req.StoreType != nil {
+		switch *req.StoreType {
+		case "personal", "lgs":
+			storeType = *req.StoreType
+		default:
+			httpx.Error(w, http.StatusBadRequest, "store_type must be personal or lgs", "INVALID_STORE_TYPE")
+			return
+		}
+	}
 
 	existing, err := h.findStoreByUser(r.Context(), u.ID)
 	if err != nil {
+		slog.Error("store.upsert.find", "err", err)
 		httpx.Error(w, http.StatusInternalServerError, "lookup", "INTERNAL")
 		return
 	}
 
 	if existing == nil {
-		// Insert
 		id, _ := ids.New()
 		status := "active"
 		if req.Status != nil {
@@ -196,11 +265,19 @@ func (h *Handler) Upsert(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err := h.DB.ExecContext(r.Context(),
 			`INSERT INTO stores
-			   (id, user_id, name, slug, description, return_policy, status,
+			   (id, user_id, name, slug, store_type, description, return_policy, status,
+			    phone, email, website,
+			    address_line1, address_line2, address_city, address_region,
+			    address_postal_code, address_country,
+			    facebook_url, instagram_url, discord_url, twitter_url, youtube_url,
 			    ship_from_recipient, ship_from_line1, ship_from_line2,
 			    ship_from_city, ship_from_region, ship_from_postal_code, ship_from_country)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, u.ID, req.Name, slug, req.Description, req.ReturnPolicy, status,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, u.ID, req.Name, slug, storeType, req.Description, req.ReturnPolicy, status,
+			req.Phone, req.Email, req.Website,
+			req.AddressLine1, req.AddressLine2, req.AddressCity, req.AddressRegion,
+			req.AddressPostalCode, upperOrNil(req.AddressCountry),
+			req.FacebookURL, req.InstagramURL, req.DiscordURL, req.TwitterURL, req.YoutubeURL,
 			req.ShipFromRecipient, req.ShipFromLine1, req.ShipFromLine2,
 			req.ShipFromCity, req.ShipFromRegion, req.ShipFromPostalCode,
 			upperOrNil(req.ShipFromCountry),
@@ -211,15 +288,22 @@ func (h *Handler) Upsert(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Update
 		sets := []string{
-			"name = ?", "slug = ?", "description = ?", "return_policy = ?",
+			"name = ?", "slug = ?", "store_type = ?", "description = ?", "return_policy = ?",
+			"phone = ?", "email = ?", "website = ?",
+			"address_line1 = ?", "address_line2 = ?", "address_city = ?", "address_region = ?",
+			"address_postal_code = ?", "address_country = ?",
+			"facebook_url = ?", "instagram_url = ?", "discord_url = ?", "twitter_url = ?", "youtube_url = ?",
 			"ship_from_recipient = ?", "ship_from_line1 = ?", "ship_from_line2 = ?",
 			"ship_from_city = ?", "ship_from_region = ?", "ship_from_postal_code = ?",
 			"ship_from_country = ?",
 		}
 		args := []any{
-			req.Name, slug, req.Description, req.ReturnPolicy,
+			req.Name, slug, storeType, req.Description, req.ReturnPolicy,
+			req.Phone, req.Email, req.Website,
+			req.AddressLine1, req.AddressLine2, req.AddressCity, req.AddressRegion,
+			req.AddressPostalCode, upperOrNil(req.AddressCountry),
+			req.FacebookURL, req.InstagramURL, req.DiscordURL, req.TwitterURL, req.YoutubeURL,
 			req.ShipFromRecipient, req.ShipFromLine1, req.ShipFromLine2,
 			req.ShipFromCity, req.ShipFromRegion, req.ShipFromPostalCode,
 			upperOrNil(req.ShipFromCountry),
@@ -255,6 +339,192 @@ func (h *Handler) findStoreByUser(ctx context.Context, userID string) (*Store, e
 		return nil, err
 	}
 	return &s, nil
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+const selectEvent = `SELECT id, store_id, title, description, event_type,
+       starts_at, ends_at, entry_fee_cents, currency, max_players,
+       is_recurring, recurrence,
+       created_at, updated_at
+  FROM store_events`
+
+var validEventTypes = map[string]bool{
+	"fnm": true, "prerelease": true, "draft": true, "commander": true,
+	"standard": true, "modern": true, "pioneer": true, "legacy": true,
+	"vintage": true, "other": true,
+}
+
+func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
+	u := auth.FromContext(r.Context())
+	store, err := h.findStoreByUser(r.Context(), u.ID)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "lookup", "INTERNAL")
+		return
+	}
+	if store == nil {
+		httpx.JSON(w, http.StatusOK, map[string]any{"data": []StoreEvent{}})
+		return
+	}
+	rows := []StoreEvent{}
+	if err := h.DB.SelectContext(r.Context(), &rows,
+		selectEvent+` WHERE store_id = ? ORDER BY starts_at ASC`, store.ID); err != nil {
+		slog.Error("store.list_events", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "list failed", "INTERNAL")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"data": rows})
+}
+
+var validRecurrence = map[string]bool{
+	"weekly": true, "biweekly": true, "monthly": true,
+}
+
+type eventReq struct {
+	Title         string  `json:"title"`
+	Description   *string `json:"description"`
+	EventType     string  `json:"event_type"`
+	StartsAt      string  `json:"starts_at"`
+	EndsAt        *string `json:"ends_at"`
+	EntryFeeCents *int64  `json:"entry_fee_cents"`
+	MaxPlayers    *int    `json:"max_players"`
+	IsRecurring   bool    `json:"is_recurring"`
+	Recurrence    *string `json:"recurrence"`
+}
+
+func (h *Handler) CreateEvent(w http.ResponseWriter, r *http.Request) {
+	u := auth.FromContext(r.Context())
+	store, err := h.findStoreByUser(r.Context(), u.ID)
+	if err != nil || store == nil {
+		httpx.Error(w, http.StatusNotFound, "store required first", "NO_STORE")
+		return
+	}
+	var req eventReq
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error(), "BAD_REQUEST")
+		return
+	}
+	if strings.TrimSpace(req.Title) == "" {
+		httpx.Error(w, http.StatusBadRequest, "title required", "INVALID_TITLE")
+		return
+	}
+	if !validEventTypes[req.EventType] {
+		req.EventType = "other"
+	}
+	startsAt, err := time.Parse(time.RFC3339, req.StartsAt)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "starts_at must be RFC3339", "INVALID_DATE")
+		return
+	}
+	var endsAt *time.Time
+	if req.EndsAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.EndsAt)
+		if err != nil {
+			httpx.Error(w, http.StatusBadRequest, "ends_at must be RFC3339", "INVALID_DATE")
+			return
+		}
+		endsAt = &t
+	}
+
+	recurrence := normalizeRecurrence(req.IsRecurring, req.Recurrence)
+
+	id, _ := ids.New()
+	_, err = h.DB.ExecContext(r.Context(),
+		`INSERT INTO store_events
+		   (id, store_id, title, description, event_type, starts_at, ends_at,
+		    entry_fee_cents, currency, max_players, is_recurring, recurrence)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, store.ID, req.Title, req.Description, req.EventType, startsAt, endsAt,
+		req.EntryFeeCents, store.DefaultCurrency, req.MaxPlayers,
+		boolToInt(req.IsRecurring), recurrence,
+	)
+	if err != nil {
+		slog.Error("store.create_event", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "create failed", "INTERNAL")
+		return
+	}
+	httpx.JSON(w, http.StatusCreated, map[string]string{"id": id})
+}
+
+func (h *Handler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
+	u := auth.FromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	store, err := h.findStoreByUser(r.Context(), u.ID)
+	if err != nil || store == nil {
+		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+		return
+	}
+	var req eventReq
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error(), "BAD_REQUEST")
+		return
+	}
+	if strings.TrimSpace(req.Title) == "" {
+		httpx.Error(w, http.StatusBadRequest, "title required", "INVALID_TITLE")
+		return
+	}
+	if !validEventTypes[req.EventType] {
+		req.EventType = "other"
+	}
+	startsAt, err := time.Parse(time.RFC3339, req.StartsAt)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "starts_at must be RFC3339", "INVALID_DATE")
+		return
+	}
+	var endsAt *time.Time
+	if req.EndsAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.EndsAt)
+		if err != nil {
+			httpx.Error(w, http.StatusBadRequest, "ends_at must be RFC3339", "INVALID_DATE")
+			return
+		}
+		endsAt = &t
+	}
+
+	recurrence := normalizeRecurrence(req.IsRecurring, req.Recurrence)
+
+	res, err := h.DB.ExecContext(r.Context(),
+		`UPDATE store_events
+		    SET title = ?, description = ?, event_type = ?, starts_at = ?, ends_at = ?,
+		        entry_fee_cents = ?, max_players = ?, is_recurring = ?, recurrence = ?
+		  WHERE id = ? AND store_id = ?`,
+		req.Title, req.Description, req.EventType, startsAt, endsAt,
+		req.EntryFeeCents, req.MaxPlayers, boolToInt(req.IsRecurring), recurrence,
+		id, store.ID,
+	)
+	if err != nil {
+		slog.Error("store.update_event", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "update failed", "INTERNAL")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) DeleteEvent(w http.ResponseWriter, r *http.Request) {
+	u := auth.FromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	store, err := h.findStoreByUser(r.Context(), u.ID)
+	if err != nil || store == nil {
+		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+		return
+	}
+	res, err := h.DB.ExecContext(r.Context(),
+		`DELETE FROM store_events WHERE id = ? AND store_id = ?`, id, store.ID)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "delete failed", "INTERNAL")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---------------------------------------------------------------------------
@@ -428,9 +698,6 @@ func (h *Handler) ListListings(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"data": rows})
 }
 
-// CreateListing creates from a collection_item the seller owns. We snapshot
-// finish/condition/lang/card_id from that collection_item rather than asking
-// the client to send them.
 type createListingReq struct {
 	CollectionItemID string  `json:"collection_item_id"`
 	Quantity         int     `json:"quantity"`
@@ -458,7 +725,6 @@ func (h *Handler) CreateListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the collection_item and verify it belongs to this user.
 	var ci struct {
 		CardID        string `db:"card_id"`
 		Finish        string `db:"finish"`
@@ -506,6 +772,29 @@ type updateListingReq struct {
 	PriceCents  *int64  `json:"price_cents"`
 	Description *string `json:"description"`
 	Status      *string `json:"status"`
+}
+
+func (h *Handler) GetListing(w http.ResponseWriter, r *http.Request) {
+	u := auth.FromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	store, err := h.findStoreByUser(r.Context(), u.ID)
+	if err != nil || store == nil {
+		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+		return
+	}
+	var l Listing
+	err = h.DB.GetContext(r.Context(), &l,
+		selectListing+` WHERE l.id = ? AND l.store_id = ?`, id, store.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpx.Error(w, http.StatusNotFound, "listing not found", "NOT_FOUND")
+			return
+		}
+		slog.Error("store.get_listing", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "lookup", "INTERNAL")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, l)
 }
 
 func (h *Handler) UpdateListing(w http.ResponseWriter, r *http.Request) {
@@ -582,19 +871,24 @@ func (h *Handler) DeleteListing(w http.ResponseWriter, r *http.Request) {
 	u := auth.FromContext(r.Context())
 	id := chi.URLParam(r, "id")
 	store, err := h.findStoreByUser(r.Context(), u.ID)
-	if err != nil || store == nil {
-		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+	if err != nil {
+		slog.Error("store.delete_listing.find_store", "err", err)
+		httpx.Error(w, http.StatusInternalServerError, "lookup", "INTERNAL")
+		return
+	}
+	if store == nil {
+		httpx.Error(w, http.StatusNotFound, "store not found", "NOT_FOUND")
 		return
 	}
 	res, err := h.DB.ExecContext(r.Context(),
-		`UPDATE listings SET status = 'delisted'
-		  WHERE id = ? AND store_id = ?`, id, store.ID)
+		`DELETE FROM listings WHERE id = ? AND store_id = ?`, id, store.ID)
 	if err != nil {
+		slog.Error("store.delete_listing", "err", err)
 		httpx.Error(w, http.StatusInternalServerError, "delete failed", "INTERNAL")
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		httpx.Error(w, http.StatusNotFound, "not found", "NOT_FOUND")
+		httpx.Error(w, http.StatusNotFound, "listing not found", "NOT_FOUND")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -620,6 +914,19 @@ func upperOrNil(s *string) any {
 		return nil
 	}
 	return t
+}
+
+// normalizeRecurrence returns a valid recurrence value or nil.
+// If is_recurring is false, or the recurrence string is not recognised, nil is
+// returned so the column stays NULL.
+func normalizeRecurrence(isRecurring bool, r *string) any {
+	if !isRecurring || r == nil {
+		return nil
+	}
+	if validRecurrence[*r] {
+		return *r
+	}
+	return nil
 }
 
 func jsonOrNil(v []string) any {

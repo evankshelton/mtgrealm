@@ -23,7 +23,8 @@ import { getStripe } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const darkInp = "border-white/10 bg-white/5 text-white placeholder:text-slate-500 focus-visible:ring-amber-500/50";
 
 type StoreShipping = { store_id: string; store_name: string; options: ShippingOption[] };
 
@@ -70,13 +71,13 @@ export default function CheckoutPage() {
   }, [addrsQ.data, addressID]);
 
   if (loading || !user) return null;
-  if (cartQ.isLoading || addrsQ.isLoading) return <p className="text-muted-foreground">Loading…</p>;
+  if (cartQ.isLoading || addrsQ.isLoading) return <p className="text-slate-400">Loading…</p>;
   if (!cartQ.data || cartQ.data.items.length === 0) {
     return (
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">Checkout</h1>
-        <p className="text-muted-foreground">Your cart is empty.</p>
-        <Button asChild variant="outline">
+        <h1 className="text-2xl font-semibold text-white">Checkout</h1>
+        <p className="text-slate-400">Your cart is empty.</p>
+        <Button asChild variant="outline" className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white">
           <Link href="/marketplace">Browse the marketplace</Link>
         </Button>
       </div>
@@ -86,10 +87,10 @@ export default function CheckoutPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/cart" className="text-sm text-muted-foreground hover:underline">
+        <Link href="/cart" className="text-sm text-slate-400 hover:text-white hover:underline">
           ← Back to cart
         </Link>
-        <h1 className="text-2xl font-semibold">Checkout</h1>
+        <h1 className="text-2xl font-semibold text-white">Checkout</h1>
       </div>
 
       <AddressPicker
@@ -128,18 +129,20 @@ function AddressPicker({
   onShowNew: (v: boolean) => void;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Ship to</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="border-b border-white/8 px-4 py-3">
+        <div className="text-base font-medium text-white">Ship to</div>
+      </div>
+      <div className="space-y-3 p-4">
         {addresses.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">
             {addresses.map((a) => (
               <label
                 key={a.id}
-                className={`cursor-pointer rounded-md border p-3 text-sm ${
-                  selected === a.id ? "border-foreground" : "border-input"
+                className={`cursor-pointer rounded-md border p-3 text-sm transition-colors ${
+                  selected === a.id
+                    ? "border-amber-500/40 bg-amber-500/5"
+                    : "border-white/10 hover:border-white/20"
                 }`}
               >
                 <input
@@ -149,8 +152,8 @@ function AddressPicker({
                   checked={selected === a.id}
                   onChange={() => onSelect(a.id)}
                 />
-                <span className="font-medium">{a.label || a.recipient}</span>
-                <div className="mt-1 text-xs text-muted-foreground">
+                <span className="font-medium text-white">{a.label || a.recipient}</span>
+                <div className="mt-1 text-xs text-slate-400">
                   {a.recipient}, {a.line1}{a.line2 ? `, ${a.line2}` : ""}, {a.city}, {a.region}{" "}
                   {a.postal_code}, {a.country}
                 </div>
@@ -161,12 +164,17 @@ function AddressPicker({
         {showNew ? (
           <NewAddressForm onClose={() => onShowNew(false)} onCreated={(id) => { onSelect(id); onShowNew(false); }} />
         ) : (
-          <Button variant="outline" size="sm" onClick={() => onShowNew(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onShowNew(true)}
+            className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+          >
             + Add new address
           </Button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -208,12 +216,12 @@ function NewAddressForm({
   }
   const inp = (k: keyof typeof f, label: string, type = "text") => (
     <div className="space-y-1">
-      <Label htmlFor={k}>{label}</Label>
-      <Input id={k} type={type} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+      <Label htmlFor={k} className="text-slate-300">{label}</Label>
+      <Input id={k} type={type} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} className={darkInp} />
     </div>
   );
   return (
-    <div className="space-y-2 rounded-md border p-3">
+    <div className="space-y-2 rounded-md border border-white/10 bg-white/5 p-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {inp("label", "Label (optional)")}
         {inp("recipient", "Recipient *")}
@@ -227,8 +235,12 @@ function NewAddressForm({
       </div>
       {err && <p className="text-sm text-destructive">{err}</p>}
       <div className="flex gap-2">
-        <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} disabled={saving} className="bg-amber-500 text-black hover:bg-amber-400">
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        <Button variant="outline" onClick={onClose} className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white">
+          Cancel
+        </Button>
       </div>
     </div>
   );
@@ -325,23 +337,24 @@ function ShippingAndPay({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Shipping</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loadingOpts && <p className="text-sm text-muted-foreground">Loading shipping options…</p>}
+      {/* Shipping panel */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+        <div className="border-b border-white/8 px-4 py-3">
+          <div className="text-base font-medium text-white">Shipping</div>
+        </div>
+        <div className="space-y-3 p-4">
+          {loadingOpts && <p className="text-sm text-slate-400">Loading shipping options…</p>}
           {stores.map((s) => {
             const opts = storeOptions[s.id] || [];
             return (
-              <div key={s.id} className="rounded-md border p-3">
-                <div className="font-medium">{s.name}</div>
+              <div key={s.id} className="rounded-md border border-white/10 bg-white/5 p-3">
+                <div className="font-medium text-white">{s.name}</div>
                 {opts.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No shipping options configured.</p>
+                  <p className="text-xs text-slate-400">No shipping options configured.</p>
                 ) : (
                   <div className="mt-2 grid gap-1 text-sm">
                     {opts.map((o) => (
-                      <label key={o.id} className="flex cursor-pointer items-center gap-2">
+                      <label key={o.id} className="flex cursor-pointer items-center gap-2 text-slate-300">
                         <input
                           type="radio"
                           name={`ship-${s.id}`}
@@ -362,37 +375,38 @@ function ShippingAndPay({
               </div>
             );
           })}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {previewErr && (
         <p className="text-sm text-destructive">{previewErr}</p>
       )}
 
+      {/* Order summary panel */}
       {preview && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Order summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+          <div className="border-b border-white/8 px-4 py-3">
+            <div className="text-base font-medium text-white">Order summary</div>
+          </div>
+          <div className="space-y-2 p-4 text-sm">
             {preview.groups.map((g) => (
-              <div key={g.store_id} className="flex justify-between border-b py-1 last:border-b-0">
-                <span>
+              <div key={g.store_id} className="flex justify-between border-b border-white/10 py-1 last:border-b-0">
+                <span className="text-slate-300">
                   {g.store_name} ({g.items} item{g.items === 1 ? "" : "s"})
                   {g.shipping_method_name ? ` · ${g.shipping_method_name}` : ""}
                 </span>
-                <span className="tabular-nums">
+                <span className="tabular-nums text-white">
                   {formatMoney(g.subtotal_cents, g.currency)} +{" "}
                   {formatMoney(g.shipping_cents, g.currency)}
                 </span>
               </div>
             ))}
-            <div className="flex justify-between pt-2 font-semibold">
+            <div className="flex justify-between pt-2 font-semibold text-white">
               <span>Total</span>
               <span>{formatMoney(preview.total_cents, preview.currency)}</span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       <PayBlock addressID={addressID} shippingByStore={shipByStore} />
@@ -439,23 +453,28 @@ function PayBlock({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Payment</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="border-b border-white/8 px-4 py-3">
+        <div className="text-base font-medium text-white">Payment</div>
+      </div>
+      <div className="space-y-3 p-4">
         {!clientSecret && (
           <>
             <div className="space-y-1">
-              <Label htmlFor="buyer_note">Note to sellers (optional)</Label>
+              <Label htmlFor="buyer_note" className="text-slate-300">Note to sellers (optional)</Label>
               <Input
                 id="buyer_note"
                 value={buyerNote}
                 onChange={(e) => setBuyerNote(e.target.value)}
                 placeholder="Anything they should know"
+                className={darkInp}
               />
             </div>
-            <Button onClick={startPayment} disabled={confirming}>
+            <Button
+              onClick={startPayment}
+              disabled={confirming}
+              className="bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-50"
+            >
               {confirming ? "Preparing…" : "Continue to payment"}
             </Button>
             {err && <p className="text-sm text-destructive">{err}</p>}
@@ -471,8 +490,8 @@ function PayBlock({
             Stripe is not configured — set STRIPE_PUBLISHABLE_KEY on the API.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -508,7 +527,11 @@ function PaymentForm() {
     <form onSubmit={pay} className="space-y-3">
       <PaymentElement />
       {err && <p className="text-sm text-destructive">{err}</p>}
-      <Button type="submit" disabled={!stripe || paying}>
+      <Button
+        type="submit"
+        disabled={!stripe || paying}
+        className="bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-50"
+      >
         {paying ? "Processing…" : "Pay now"}
       </Button>
     </form>

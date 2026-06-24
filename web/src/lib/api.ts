@@ -236,10 +236,29 @@ export type Store = {
   id: string;
   name: string;
   slug: string;
+  store_type: string;
   description: string | null;
   return_policy: string | null;
   status: string;
   default_currency: string;
+  // Contact (LGS)
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  // Public storefront address (LGS)
+  address_line1: string | null;
+  address_line2: string | null;
+  address_city: string | null;
+  address_region: string | null;
+  address_postal_code: string | null;
+  address_country: string | null;
+  // Social links
+  facebook_url: string | null;
+  instagram_url: string | null;
+  discord_url: string | null;
+  twitter_url: string | null;
+  youtube_url: string | null;
+  // Operational shipping origin
   ship_from_recipient: string | null;
   ship_from_line1: string | null;
   ship_from_line2: string | null;
@@ -249,6 +268,20 @@ export type Store = {
   ship_from_country: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type StoreEvent = {
+  id: string;
+  title: string;
+  description: string | null;
+  event_type: string;
+  starts_at: string;
+  ends_at: string | null;
+  entry_fee_cents: number | null;
+  currency: string;
+  max_players: number | null;
+  is_recurring: boolean;
+  recurrence: "weekly" | "biweekly" | "monthly" | null;
 };
 
 export type ShippingOption = {
@@ -278,8 +311,9 @@ export type MarketplaceListing = {
   price_cents: number;
   currency: string;
   description: string | null;
-  // status only on the seller's own listing rows.
+  // status and created_at only on the seller's own listing rows.
   status?: string;
+  created_at?: string;
   card_name: string;
   oracle_id: string | null;
   set_code: string | null;

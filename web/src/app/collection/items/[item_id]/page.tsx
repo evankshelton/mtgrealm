@@ -13,16 +13,14 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { AddToDeckButton } from "@/components/add-to-deck-dialog";
+import { ManaCost } from "@/components/mana-cost";
 import { MiniDeckTile } from "@/components/mini-deck-tile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
+const darkInp = "border-white/10 bg-white/5 text-white placeholder:text-slate-500 focus-visible:ring-amber-500/50";
+const darkSel = "h-10 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/50";
 
 export default function CollectionItemPage({
   params,
@@ -58,14 +56,14 @@ export default function CollectionItemPage({
   };
 
   if (loading || !user) return null;
-  if (itemQ.isLoading) return <p className="text-muted-foreground">Loading…</p>;
+  if (itemQ.isLoading) return <p className="text-slate-400">Loading…</p>;
   if (itemQ.error) {
     const e = itemQ.error as Error & { status?: number };
     if (e.status === 404) {
       return (
         <div className="space-y-3">
-          <p className="text-muted-foreground">That card is no longer in your collection.</p>
-          <Button asChild variant="outline">
+          <p className="text-slate-400">That card is no longer in your collection.</p>
+          <Button asChild variant="outline" className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white">
             <Link href="/collection">← Back to collection</Link>
           </Button>
         </div>
@@ -79,7 +77,7 @@ export default function CollectionItemPage({
     <div className="space-y-6">
       <Link
         href="/collection"
-        className="inline-block text-sm text-muted-foreground hover:underline"
+        className="inline-block text-sm text-slate-400 hover:text-white hover:underline"
       >
         ← Back to collection
       </Link>
@@ -114,7 +112,7 @@ function ImageColumn({ item, card }: { item: CollectionItem; card?: CardPrint })
     (item.image_uris?.normal as string | undefined);
 
   if (!src) {
-    return <div className="aspect-[5/7] rounded-lg bg-muted" />;
+    return <div className="aspect-[5/7] rounded-lg bg-white/10" />;
   }
 
   return (
@@ -146,55 +144,47 @@ function InfoColumn({
   return (
     <div className="space-y-5">
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">{item.card_name}</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight text-white">{item.card_name}</h1>
+        <p className="text-sm text-slate-400">
           {item.type_line}
-          {card?.mana_cost ? ` · ${card.mana_cost}` : ""}
+          {card?.mana_cost && <> · <ManaCost cost={card.mana_cost} /></>}
           {typeof card?.cmc === "number" ? ` · CMC ${card.cmc}` : ""}
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-slate-400">
           {item.set_name} ({item.set_code?.toUpperCase()}) · #{item.collector_number}
           {" · "}
           {item.rarity}
           {" · "}
           {item.lang}
         </p>
-        {item.oracle_id && (
-          <p className="text-xs">
-            <Link
-              href={`/cards/${item.oracle_id}`}
-              className="text-muted-foreground hover:underline"
-            >
-              See all printings →
-            </Link>
-          </p>
-        )}
       </header>
 
       {/* Manage tools */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">In your collection</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-4">
+      <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+        <div className="border-b border-white/8 px-4 py-3">
+          <div className="text-base font-medium text-white">In your collection</div>
+        </div>
+        <div className="flex flex-wrap items-end gap-4 p-4">
           <div className="space-y-1">
-            <Label>Quantity</Label>
+            <Label className="text-slate-300">Quantity</Label>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="sm"
                 disabled={item.quantity <= 0}
                 onClick={() => patch({ quantity: item.quantity - 1 })}
+                className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
               >
                 −
               </Button>
-              <span className="min-w-10 text-center text-lg font-medium tabular-nums">
+              <span className="min-w-10 text-center text-lg font-medium tabular-nums text-white">
                 {item.quantity}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => patch({ quantity: item.quantity + 1 })}
+                className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
               >
                 +
               </Button>
@@ -202,12 +192,12 @@ function InfoColumn({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="finish">Finish</Label>
+            <Label htmlFor="finish" className="text-slate-300">Finish</Label>
             <select
               id="finish"
               value={item.finish}
               onChange={(e) => patch({ finish: e.target.value })}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className={darkSel}
             >
               {FINISHES.map((f) => (
                 <option key={f}>{f}</option>
@@ -216,49 +206,49 @@ function InfoColumn({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="cond">Condition</Label>
+            <Label htmlFor="cond" className="text-slate-300">Condition</Label>
             <select
               id="cond"
               value={item.card_condition}
               onChange={(e) => patch({ card_condition: e.target.value })}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className={darkSel}
             >
               {CONDITIONS.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Oracle text / flavor / artist */}
       {isCardLoading && (
-        <p className="text-sm text-muted-foreground">Loading card details…</p>
+        <p className="text-sm text-slate-400">Loading card details…</p>
       )}
       {card && (
-        <div className="space-y-3 rounded-lg border p-4">
+        <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
           {card.oracle_text && (
-            <p className="whitespace-pre-line text-sm leading-relaxed">
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-300">
               {card.oracle_text}
             </p>
           )}
           {(card.power || card.toughness || card.loyalty) && (
-            <p className="text-sm font-medium">
+            <p className="text-sm font-medium text-white">
               {card.power && card.toughness ? `${card.power} / ${card.toughness}` : null}
               {card.loyalty ? `Loyalty: ${card.loyalty}` : null}
             </p>
           )}
           {card.flavor_text && (
-            <p className="border-t pt-3 text-sm italic text-muted-foreground">
+            <p className="border-t border-white/10 pt-3 text-sm italic text-slate-400">
               {card.flavor_text}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-slate-500">
             {card.artist ? `Illustrated by ${card.artist}` : null}
             {card.released_at ? ` · ${card.released_at}` : null}
           </p>
           {card.prices && hasPrice(card.prices) && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-slate-500">
               Market: {formatPrices(card.prices)}
             </p>
           )}
@@ -280,11 +270,11 @@ function DecksSection({
   onChanged: () => void;
 }) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">In decks</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="border-b border-white/8 px-4 py-3">
+        <div className="text-base font-medium text-white">In decks</div>
+      </div>
+      <div className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <AddToDeckButton
             collectionItemId={item.id}
@@ -292,7 +282,7 @@ function DecksSection({
             onAdded={onChanged}
           />
           {item.in_decks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-400">
               Not in any deck yet — click the dashed card to assign it.
             </p>
           ) : (
@@ -304,8 +294,8 @@ function DecksSection({
             ))
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -315,24 +305,24 @@ function DecksSection({
 
 function ListingsSection({ item }: { item: CollectionItem }) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">For sale</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="border-b border-white/8 px-4 py-3">
+        <div className="text-base font-medium text-white">For sale</div>
+      </div>
+      <div className="space-y-2 p-4">
         {item.in_listings.map((l) => (
           <div
             key={l.listing_id}
-            className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+            className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
           >
-            <span>
-              {l.quantity}× listed at <strong>{formatMoney(l.price_cents, l.currency)}</strong>
+            <span className="text-slate-300">
+              {l.quantity}× listed at <strong className="text-white">{formatMoney(l.price_cents, l.currency)}</strong>
             </span>
-            <span className="text-xs text-muted-foreground">{l.status}</span>
+            <span className="text-xs text-slate-500">{l.status}</span>
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -384,32 +374,34 @@ function AcquiredAndNotes({
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Notes &amp; acquisition</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="border-b border-white/8 px-4 py-3">
+        <div className="text-base font-medium text-white">Notes &amp; acquisition</div>
+      </div>
+      <div className="space-y-3 p-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_180px_140px]">
           <div className="space-y-1">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes" className="text-slate-300">Notes</Label>
             <Input
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. signed copy, pulled from prerelease"
+              className={darkInp}
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="acq-at">Acquired on</Label>
+            <Label htmlFor="acq-at" className="text-slate-300">Acquired on</Label>
             <Input
               id="acq-at"
               type="date"
               value={acquiredAt || ""}
               onChange={(e) => setAcquiredAt(e.target.value)}
+              className={darkInp}
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="acq-price">Price</Label>
+            <Label htmlFor="acq-price" className="text-slate-300">Price</Label>
             <Input
               id="acq-price"
               type="number"
@@ -418,19 +410,24 @@ function AcquiredAndNotes({
               placeholder="0.00"
               value={acquiredPrice}
               onChange={(e) => setAcquiredPrice(e.target.value)}
+              className={darkInp}
             />
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={save} disabled={!dirty || saving}>
+          <Button
+            onClick={save}
+            disabled={!dirty || saving}
+            className="bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-50"
+          >
             {saving ? "Saving…" : "Save"}
           </Button>
           {savedAt && !dirty && (
-            <span className="text-xs text-muted-foreground">Saved.</span>
+            <span className="text-xs text-slate-500">Saved.</span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -464,7 +461,7 @@ function DangerZone({ item }: { item: CollectionItem }) {
     <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 flex items-center justify-between">
       <div className="text-sm">
         <div className="font-medium text-destructive">Remove from collection</div>
-        <p className="text-muted-foreground">
+        <p className="text-slate-400">
           Deletes this entry and removes it from any decks that reference it.
         </p>
       </div>

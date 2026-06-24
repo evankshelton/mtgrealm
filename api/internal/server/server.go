@@ -94,6 +94,7 @@ func New(db *sqlx.DB, cfg *config.Config) http.Handler {
 		r.Get("/marketplace/listings/{id}", mktH.ListingDetail)
 		r.Get("/marketplace/stores/{slug}", mktH.StorePublic)
 		r.Get("/marketplace/stores/by-id/{id}/shipping", mktH.StoreShippingPublic)
+		r.Get("/marketplace/cards/{oracle_id}/listings", mktH.CardListings)
 
 		// --- features (stubs) ---
 		// All require auth; concrete handlers come in later iterations.
@@ -136,6 +137,7 @@ func New(db *sqlx.DB, cfg *config.Config) http.Handler {
 				r.Delete("/shipping/{id}", storeH.DeleteShipping)
 				r.Get("/listings", storeH.ListListings)
 				r.Post("/listings", storeH.CreateListing)
+				r.Get("/listings/{id}", storeH.GetListing)
 				r.Patch("/listings/{id}", storeH.UpdateListing)
 				r.Delete("/listings/{id}", storeH.DeleteListing)
 			})

@@ -16,55 +16,77 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 type Target =
   | { kind: "collection" }
   | { kind: "deck"; deckId: string };
 
-export function AddCard({
+const darkInp = "border-white/10 bg-white/5 text-white placeholder:text-slate-500 focus-visible:ring-amber-500/50";
+const darkSel = "h-10 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/50";
+
+// ---------------------------------------------------------------------------
+// Public: dialog wrapper
+// ---------------------------------------------------------------------------
+
+export function AddCardDialog({
+  open,
+  onOpenChange,
   target,
   onAdded,
 }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
   target: Target;
   onAdded: () => void;
 }) {
-  // Deck targets get two modes; collection targets only have one.
   const [mode, setMode] = useState<"from-collection" | "search">(
     target.kind === "deck" ? "from-collection" : "search",
   );
 
-  return (
-    <div className="rounded-lg border p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium">
-          Add a card to {target.kind === "deck" ? "deck" : "collection"}
-        </h3>
-        {target.kind === "deck" && (
-          <div className="flex gap-1 text-sm">
-            <Button
-              size="sm"
-              variant={mode === "from-collection" ? "default" : "outline"}
-              onClick={() => setMode("from-collection")}
-            >
-              From collection
-            </Button>
-            <Button
-              size="sm"
-              variant={mode === "search" ? "default" : "outline"}
-              onClick={() => setMode("search")}
-            >
-              Add new
-            </Button>
-          </div>
-        )}
-      </div>
+  function handleAdded() {
+    onAdded();
+    onOpenChange(false);
+  }
 
-      {mode === "from-collection" && target.kind === "deck" ? (
-        <FromCollectionFlow deckId={target.deckId} onAdded={onAdded} />
-      ) : (
-        <SearchFlow target={target} onAdded={onAdded} />
-      )}
-    </div>
+  const tabBtn = (active: boolean) =>
+    [
+      "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+      active
+        ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+        : "border-white/10 text-slate-400 hover:border-white/30 hover:text-white",
+    ].join(" ");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3xl bg-[#0d0d1a] border-white/10">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
+          <DialogTitle className="text-white">
+            Add card to {target.kind === "deck" ? "deck" : "collection"}
+          </DialogTitle>
+          {target.kind === "deck" && (
+            <div className="flex shrink-0 gap-1">
+              <button onClick={() => setMode("from-collection")} className={tabBtn(mode === "from-collection")}>
+                From collection
+              </button>
+              <button onClick={() => setMode("search")} className={tabBtn(mode === "search")}>
+                Add new
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto p-6 space-y-4">
+          {mode === "from-collection" && target.kind === "deck" ? (
+            <FromCollectionFlow deckId={target.deckId} onAdded={handleAdded} />
+          ) : (
+            <SearchFlow target={target} onAdded={handleAdded} />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -109,10 +131,10 @@ function FromCollectionFlow({
     );
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading collection…</p>;
+  if (isLoading) return <p className="text-sm text-slate-400">Loading collection…</p>;
   if (!data || data.items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-slate-400">
         Your collection is empty. Switch to <em>Add new</em> to add a card to both your collection
         and this deck.
       </p>
@@ -125,16 +147,17 @@ function FromCollectionFlow({
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder="Filter your collection by name…"
+        className={darkInp}
       />
       {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No cards match.</p>
+        <p className="text-sm text-slate-400">No cards match.</p>
       ) : (
         <div className="grid max-h-96 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
           {filtered.map((it) => (
             <button
               key={it.id}
               onClick={() => setPicked(it)}
-              className="flex items-center gap-3 rounded border p-2 text-left hover:bg-accent"
+              className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-2 text-left transition-colors hover:bg-white/5"
             >
               {it.image_uris?.small || it.image_uris?.normal ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -144,18 +167,18 @@ function FromCollectionFlow({
                   className="h-16 w-auto rounded"
                 />
               ) : (
-                <div className="h-16 w-12 rounded bg-muted" />
+                <div className="h-16 w-12 rounded bg-white/10" />
               )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium">{it.card_name}</span>
+                  <span className="truncate text-sm font-medium text-white">{it.card_name}</span>
                   {it.finish !== "nonfoil" && (
-                    <span className="rounded bg-secondary px-1 py-0.5 text-[10px]">
+                    <span className="rounded bg-purple-900/40 px-1 py-0.5 text-[10px] text-purple-300">
                       {it.finish}
                     </span>
                   )}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="truncate text-xs text-slate-400">
                   {it.set_name} ({it.set_code?.toUpperCase()}) #{it.collector_number} ·{" "}
                   {it.card_condition} · {it.lang} · own {it.quantity}
                 </div>
@@ -194,7 +217,6 @@ function SearchFlow({
   });
 
   const printsQ = useQuery<{ oracle_id: string; prints: CardPrint[] }>({
-    // No ?lang= — the API filters to the user's preferred_language.
     queryKey: ["add-prints", chosenCanonical?.oracle_id],
     queryFn: () => api.get(`/cards/oracle/${chosenCanonical!.oracle_id}/prints`),
     enabled: !!chosenCanonical,
@@ -213,10 +235,7 @@ function SearchFlow({
         <CollectionAddForm
           card={chosenPrint}
           onCancel={() => setChosenPrint(null)}
-          onAdded={() => {
-            onAdded();
-            reset();
-          }}
+          onAdded={() => { onAdded(); reset(); }}
         />
       );
     }
@@ -226,10 +245,7 @@ function SearchFlow({
         mode="new-card"
         print={chosenPrint}
         onCancel={() => setChosenPrint(null)}
-        onAdded={() => {
-          onAdded();
-          reset();
-        }}
+        onAdded={() => { onAdded(); reset(); }}
       />
     );
   }
@@ -247,22 +263,25 @@ function SearchFlow({
             />
           )}
           <div>
-            <div className="font-medium">{chosenCanonical.name}</div>
-            <div className="text-xs text-muted-foreground">{chosenCanonical.type_line}</div>
-            <Button variant="link" size="sm" className="px-0" onClick={() => setChosenCanonical(null)}>
+            <div className="font-medium text-white">{chosenCanonical.name}</div>
+            <div className="text-xs text-slate-400">{chosenCanonical.type_line}</div>
+            <button
+              onClick={() => setChosenCanonical(null)}
+              className="mt-1 text-sm text-amber-400 hover:text-amber-300"
+            >
               ← Pick a different card
-            </Button>
+            </button>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">Pick a printing:</p>
-        {printsQ.isLoading && <p className="text-sm text-muted-foreground">Loading printings…</p>}
+        <p className="text-sm text-slate-400">Pick a printing:</p>
+        {printsQ.isLoading && <p className="text-sm text-slate-400">Loading printings…</p>}
         {printsQ.data && (
           <div className="grid max-h-96 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
             {printsQ.data.prints.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setChosenPrint(p)}
-                className="flex items-center gap-3 rounded border p-2 text-left hover:bg-accent"
+                className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-2 text-left transition-colors hover:bg-white/5"
               >
                 {p.image_uris?.small || p.image_uris?.normal ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -272,13 +291,13 @@ function SearchFlow({
                     className="h-16 w-auto rounded"
                   />
                 ) : (
-                  <div className="h-16 w-12 rounded bg-muted" />
+                  <div className="h-16 w-12 rounded bg-white/10" />
                 )}
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">
+                  <div className="truncate text-sm font-medium text-white">
                     {p.set_name} ({p.set_code?.toUpperCase()})
                   </div>
-                  <div className="truncate text-xs text-muted-foreground">
+                  <div className="truncate text-xs text-slate-400">
                     #{p.collector_number} · {p.rarity} · {p.released_at} · {p.lang}
                   </div>
                 </div>
@@ -299,10 +318,10 @@ function SearchFlow({
           setSubmitted(q.trim());
         }}
       >
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search card name…" />
-        <Button type="submit">Search</Button>
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search card name…" className={darkInp} />
+        <Button type="submit" className="bg-amber-500 text-black hover:bg-amber-400">Search</Button>
       </form>
-      {searchQ.isFetching && <p className="text-sm text-muted-foreground">Searching…</p>}
+      {searchQ.isFetching && <p className="text-sm text-slate-400">Searching…</p>}
       {searchQ.data && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
           {searchQ.data.data.map((c) => (
@@ -320,10 +339,10 @@ function SearchFlow({
                   loading="lazy"
                 />
               ) : (
-                <div className="aspect-[488/680] w-full rounded bg-muted" />
+                <div className="aspect-[488/680] w-full rounded bg-white/10" />
               )}
-              <div className="mt-1 truncate text-sm font-medium">{c.name}</div>
-              <div className="truncate text-xs text-muted-foreground">{c.type_line ?? ""}</div>
+              <div className="mt-1 truncate text-sm font-medium text-white">{c.name}</div>
+              <div className="truncate text-xs text-slate-400">{c.type_line ?? ""}</div>
             </button>
           ))}
         </div>
@@ -378,20 +397,14 @@ function CollectionAddForm({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <QtyField value={quantity} onChange={setQuantity} />
         <SelectField label="Finish" id="finish" value={finish} onChange={(v) => setFinish(v as any)} options={FINISHES} />
-        <SelectField
-          label="Condition"
-          id="cond"
-          value={cardCondition}
-          onChange={(v) => setCondition(v as any)}
-          options={CONDITIONS}
-        />
+        <SelectField label="Condition" id="cond" value={cardCondition} onChange={(v) => setCondition(v as any)} options={CONDITIONS} />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <Button onClick={submit} disabled={submitting}>
+        <Button onClick={submit} disabled={submitting} className="bg-amber-500 text-black hover:bg-amber-400">
           {submitting ? "Adding…" : "Add to collection"}
         </Button>
-        <Button variant="outline" onClick={onCancel}>
+        <Button variant="outline" onClick={onCancel} className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white">
           Back
         </Button>
       </div>
@@ -469,16 +482,16 @@ function DeckEntryForm(
         )}
       </div>
       {props.mode === "new-card" && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-slate-500">
           This will also add the card to your collection.
         </p>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <Button onClick={submit} disabled={submitting}>
+        <Button onClick={submit} disabled={submitting} className="bg-amber-500 text-black hover:bg-amber-400">
           {submitting ? "Adding…" : "Add to deck"}
         </Button>
-        <Button variant="outline" onClick={props.onCancel}>
+        <Button variant="outline" onClick={props.onCancel} className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white">
           Back
         </Button>
       </div>
@@ -498,11 +511,11 @@ function PrintPreview({ card }: { card: CardPrint }) {
         <img src={card.image_uris.normal} alt={card.name} className="h-40 w-auto rounded" />
       )}
       <div className="text-sm">
-        <div className="font-medium">{card.name}</div>
-        <div className="text-muted-foreground">
+        <div className="font-medium text-white">{card.name}</div>
+        <div className="text-slate-400">
           {card.set_name} ({card.set_code?.toUpperCase()}) · #{card.collector_number}
         </div>
-        <div className="text-muted-foreground">
+        <div className="text-slate-400">
           {card.rarity} · {card.lang} · {card.released_at}
         </div>
       </div>
@@ -518,11 +531,11 @@ function ItemPreview({ item }: { item: CollectionItem }) {
         <img src={item.image_uris.normal as string} alt={item.card_name} className="h-40 w-auto rounded" />
       )}
       <div className="text-sm">
-        <div className="font-medium">{item.card_name}</div>
-        <div className="text-muted-foreground">
+        <div className="font-medium text-white">{item.card_name}</div>
+        <div className="text-slate-400">
           {item.set_name} ({item.set_code?.toUpperCase()}) · #{item.collector_number}
         </div>
-        <div className="text-muted-foreground">
+        <div className="text-slate-400">
           {item.finish} · {item.card_condition} · {item.lang} · you own {item.quantity}
         </div>
       </div>
@@ -533,13 +546,14 @@ function ItemPreview({ item }: { item: CollectionItem }) {
 function QtyField({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor="qty">Quantity</Label>
+      <Label htmlFor="qty" className="text-slate-300">Quantity</Label>
       <Input
         id="qty"
         type="number"
         min={1}
         value={value}
         onChange={(e) => onChange(Math.max(1, parseInt(e.target.value || "1", 10)))}
+        className={darkInp}
       />
     </div>
   );
@@ -560,12 +574,12 @@ function SelectField({
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className="text-slate-300">{label}</Label>
       <select
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        className={darkSel}
       >
         {options.map((o) => (
           <option key={o} value={o}>

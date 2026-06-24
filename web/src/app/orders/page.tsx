@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api, formatMoney, type Order } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent } from "@/components/ui/card";
 
 export default function OrdersPage() {
   const { user, loading } = useAuth();
@@ -23,33 +22,34 @@ export default function OrdersPage() {
   });
 
   if (loading || !user) return null;
-  if (isLoading) return <p className="text-muted-foreground">Loading…</p>;
+  if (isLoading) return <p className="text-slate-400">Loading…</p>;
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Your orders</h1>
+      <h1 className="text-2xl font-semibold text-white">Your orders</h1>
       {data?.data.length === 0 && (
-        <p className="text-muted-foreground">
+        <p className="text-slate-400">
           You haven&apos;t placed any orders yet.{" "}
-          <Link href="/marketplace" className="underline">Browse the marketplace</Link>.
+          <Link href="/marketplace" className="underline hover:text-white">
+            Browse the marketplace
+          </Link>
+          .
         </p>
       )}
       {data?.data.map((o) => (
         <Link key={o.id} href={`/orders/${o.id}`}>
-          <Card className="transition hover:shadow-md">
-            <CardContent className="flex items-center justify-between gap-3 p-3">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{o.store_name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {new Date(o.created_at).toLocaleString()} · {o.item_count} item
-                  {o.item_count === 1 ? "" : "s"} · status {o.status}
-                </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition-colors hover:bg-white/5">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-white">{o.store_name}</div>
+              <div className="text-xs text-slate-400">
+                {new Date(o.created_at).toLocaleString()} · {o.item_count} item
+                {o.item_count === 1 ? "" : "s"} · {o.status}
               </div>
-              <div className="text-sm font-semibold tabular-nums">
-                {formatMoney(o.total_cents, o.currency)}
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="text-sm font-semibold tabular-nums text-slate-300">
+              {formatMoney(o.total_cents, o.currency)}
+            </div>
+          </div>
         </Link>
       ))}
     </div>
